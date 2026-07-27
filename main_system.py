@@ -2,6 +2,10 @@
 main_system.py — The unified, functioning Orchestrator graph containing all
 6 active guardrails.
 
+Owner: Student 3 (System Integration — assigned after finishing their own
+guardrail first, to balance remaining workload; see README.md's Team & Role
+Assignment table).
+
 Architecture (from the assignment's routing diagram):
 
                   ┌──────────────────────────────┐
@@ -34,9 +38,21 @@ guardrail layers get merged into one working system.
 # TODO(team): from student_6_tokens.snippet import context_manager_node
 
 
+def worker_d_reporter_node(state):
+    """
+    Terminal reporting node. Not one of the 6 owned guardrail roles — no
+    dedicated failure mode, reached directly from the Coordinator via Route C
+    once Worker C validates the result (or via Student 1's round-limit
+    guardrail for a degraded exit).
+    TODO(Student 3): compose an actual human-readable report from whatever
+    Worker A/B/C left in state (analysis_payload, tool_execution_results).
+    """
+    raise NotImplementedError("TODO(Student 3): compose the final report.")
+
+
 def build_graph():
-    """TODO(team): construct the StateGraph shown in the diagram above."""
-    raise NotImplementedError("TODO(team): build and wire the orchestrator graph.")
+    """TODO(Student 3): construct the StateGraph shown in the diagram above."""
+    raise NotImplementedError("TODO(Student 3): build and wire the orchestrator graph.")
 
 
 if __name__ == "__main__":

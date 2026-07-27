@@ -112,9 +112,12 @@ LANGCHAIN_PROJECT=orchestrator-trading-bot
 | 3. Worker C (Validator) | Downstream Cascade Failure | **Student 4** | [`student_4_cascade/`](student_4_cascade/) |
 | 4. Global Graph Layer (Tracing & Privacy) | Data Privacy Leak (Tracing) | **Student 5** | [`student_5_trace/`](student_5_trace/) |
 | 5. Global Graph Layer (Context/Token Manager) | Context Window Explosion / Token Burn | **Student 6** | [`student_6_tokens/`](student_6_tokens/) |
+| System Integration (`main_system.py` + Worker D Reporter) | — (team deliverable, not a failure mode) | **Student 3** | `main_system.py` |
 
-This mapping is a starting recommendation — swap assignments if the team
-prefers a different split, just keep this table in sync with who owns what.
+Student 3 also owns System Integration — assigned after they finished their
+own guardrail first, to balance remaining workload across the team (Worker D
+has no dedicated failure mode/owner per the assignment, and someone still
+has to wire `main_system.py` together once all 6 guardrails exist).
 
 ## Domain — Financial Trading Bot
 
@@ -131,7 +134,10 @@ Mapping onto the pipeline:
   whitelist matrix (see `student_3_rogue/snippet.py`).
 - **Worker C (Validator)** — the risk/compliance check before a trade's
   result is reported.
-- **Worker D (Reporter)** — audit logging / final report.
+- **Worker D (Reporter)** — audit logging / final report. Not one of the 6
+  owned guardrail roles in the table above (it has no dedicated failure mode
+  or owner) — it's just the terminal node the Coordinator routes to once
+  Worker C validates the result.
 
 ## Run Your Own Guardrail (Individual)
 
