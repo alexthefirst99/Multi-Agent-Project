@@ -41,7 +41,7 @@ def validate_tool_call(tool_name: str, arguments: dict) -> None:
         )
 
 
-def mock_execute_tool(tool_name: str, arguments: dict) -> None:
+def mock_execute_tool(tool_name: str, arguments: dict) -> dict:
     """
     Every 'execution' here is a mock print — per the assignment's Strict
     Safety Mandate, this must never touch real infrastructure.
@@ -49,10 +49,12 @@ def mock_execute_tool(tool_name: str, arguments: dict) -> None:
     chosen domain, but never call a real destructive command.
     """
     print(f"MOCK EXECUTION: would call '{tool_name}' with {arguments}")
+    return {"tool_name": tool_name, "status": "mock_success"}
 
 
 def worker_b_actor_node(state: AgentState) -> AgentState:
     state.sanitized_tool_calls = []
+    state.tool_execution_results = []
     state.error_log = None
 
     for call in state.proposed_tool_calls:
@@ -66,9 +68,14 @@ def worker_b_actor_node(state: AgentState) -> AgentState:
             # nothing in this batch partially executes.
             state.error_log = f"Rogue tool execution blocked: {exc}"
             state.sanitized_tool_calls = []
+            state.tool_execution_results = []
             return state
 
-        mock_execute_tool(tool_name, arguments)
+        result = mock_execute_tool(tool_name, arguments)
         state.sanitized_tool_calls.append(tool_name)
+        # Handed off to Worker C (Student 4) — see contract.py's field
+        # ownership notes. The exact shape here (tool_name + status) is what
+        # Student 4's sanitize node is expected to assert invariants on.
+        state.tool_execution_results.append(result)
 
     return state
