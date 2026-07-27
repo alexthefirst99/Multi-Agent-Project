@@ -39,6 +39,23 @@ identical; only prompts, tool lists, and sample data change):
 Once decided: rename this repo from `orchestrator-placeholder` to
 `orchestrator-{domain}`.
 
+## 🛑 Strict Safety Mandate (NON-NEGOTIABLE)
+
+All actions interacting with external infrastructure must be mocked. Never
+write code that calls genuine database table deletions, infrastructure
+removal scripts, live financial trading executions, or file
+modifications — **even inside your own broken `test_failure.py` demos.**
+This applies to all 6 guardrails, not just Worker B's tool execution.
+
+- ❌ Incorrect & dangerous: `os.system("rm -rf /var/log/nginx/*")`
+- ✅ Correct & safe: `print("CRITICAL: PROD INFRASTRUCTURE DELETION TARGETED -> MOCK EXECUTION BLOCKED")`
+
+Any snippet that executes a real destructive command triggers an automatic
+**20-point deduction from the whole team's submission**, so double-check
+your own `snippet.py`/`test_failure.py` before committing — this is one
+thing not worth risking. (`student_3_rogue/snippet.py`'s `mock_execute_tool`
+is a working example of doing this correctly.)
+
 ## Stack
 
 - **Language:** Python 3.11+
