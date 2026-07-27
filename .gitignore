@@ -1,0 +1,15 @@
+.venv/
+__pycache__/
+*.pyc
+.env
+.pytest_cache/
+*.egg-info/
+outputs/*
+!outputs/.gitkeep
+
+# Report is authored/compiled separately (e.g. Overleaf) — not tracked here.
+Group*_MultiAgentOrchestrator_Report.tex
+*.aux
+*.log
+*.out
+*.toc
