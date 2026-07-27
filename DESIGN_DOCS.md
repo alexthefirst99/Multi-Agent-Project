@@ -1,10 +1,12 @@
 # Design Docs — Alternative Failure Risks Considered
 
-> **TODO(domain):** this file is easiest to fill in *after* the domain is
-> picked, since several risks are domain-flavored. The 6 primary failure
-> modes (one per student) are listed first as reference; add the remaining
-> 13 risks your team actually discussed, even ones you decided NOT to build
-> a guardrail for — explain why not.
+> **Domain: Financial Trading Bot** (Market Analysis → Trade Execution →
+> Risk/Compliance Check → Audit Logging). The 6 primary failure modes (one
+> per student) are listed first as reference; the team still needs to add
+> the remaining 13 risks below, now with real trading-domain manifestations
+> (e.g. stale market data, race conditions between concurrent trades,
+> regulatory/compliance drift) — even ones you decided NOT to build a
+> guardrail for; explain why not.
 
 ## 1. Architecture Recap
 
@@ -46,7 +48,7 @@ existing guardrail" is a fine answer).
 | 18 | TODO | TODO | Yes / No | TODO |
 | 19 | TODO | TODO | Yes / No | TODO |
 
-Ideas to consider pulling from (delete what doesn't apply once domain is picked):
+Ideas to consider pulling from (delete what doesn't apply to trading):
 - Prompt injection via untrusted tool/API output re-entering the LLM context
 - Coordinator routing to a dead/removed node after refactor (graph integrity)
 - Race conditions if any nodes are parallelized

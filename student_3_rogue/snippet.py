@@ -1,9 +1,11 @@
 """
 Student 3 — Worker B (Actor)
+Domain: Financial Trading Bot
 Critical Failure Mode: Rogue Tool Execution
 
 The Failure: Worker B receives a prompt that triggers a jailbreak or an
-un-vetted tool invocation parameter, generating a destructive call payload.
+un-vetted tool invocation parameter — e.g. an oversized or unauthorized
+trade — generating a destructive call payload.
 
 The Guardrail: Build a functional, dynamic tool runtime execution
 middleware. Intercept the LLM's requested tool call array before execution.
@@ -16,11 +18,10 @@ from contract import AgentState
 
 # Hardcoded lookup configuration matrix: tool name -> the argument keys it
 # accepts. Anything not listed here is rejected before execution, not after.
-# TODO(domain): replace with the real tool surface once the domain is chosen.
 TOOL_WHITELIST: dict[str, set[str]] = {
-    "send_notification": {"channel", "message"},
-    "restart_service": {"service_name"},
-    "create_report_draft": {"title", "body"},
+    "execute_trade": {"ticker", "side", "quantity"},
+    "cancel_order": {"order_id"},
+    "send_compliance_alert": {"severity", "message"},
 }
 
 
@@ -44,9 +45,8 @@ def validate_tool_call(tool_name: str, arguments: dict) -> None:
 def mock_execute_tool(tool_name: str, arguments: dict) -> dict:
     """
     Every 'execution' here is a mock print — per the assignment's Strict
-    Safety Mandate, this must never touch real infrastructure.
-    TODO(domain): swap the print for whatever safe mock behavior fits the
-    chosen domain, but never call a real destructive command.
+    Safety Mandate, this must never touch a real brokerage/trading API or
+    place a real order.
     """
     print(f"MOCK EXECUTION: would call '{tool_name}' with {arguments}")
     return {"tool_name": tool_name, "status": "mock_success"}

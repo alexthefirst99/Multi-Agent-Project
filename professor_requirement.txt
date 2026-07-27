@@ -1,0 +1,238 @@
+Course Assignment: Multi-Agent Failure Modes & Guardrails
+Course: Introductory Agentic AI (Master’s Level)
+
+Type: Group Assignment (6 Students)
+
+Language: Any language with multi-agent library support
+
+Recommended Stack: LangGraph (Python) + LangSmith + AntiGravity IDE
+
+(Alternative stacks like LangChain.js or AutoGen are fully accepted if the team is proficient.)
+
+🎯 Core Learning Goals
+By completing this assignment, your team will master the following universal software engineering principles:
+
+Architectural Patterns: Design a dynamic Coordinator + Worker topology that manages complex state, conditional routing, handoffs, and deterministic loops in an asynchronous multi-agent system.
+
+Failure Mode Awareness: Identify, programmatically reproduce, and mitigate the 6 critical failure modes (infinite loops, silent failures, rogue actions, cascade failures, data privacy leaks, and context window explosion) that plague production-grade agents.
+
+Guardrail Engineering: Implement code-based guardrails (schema enforcement, dynamic tool whitelists, context pruning) that programmatically prevent failures, moving beyond fragile prompt engineering.
+
+Contract-First Design: Define and enforce a rigid, shared schema (Contract) for data state passing between agents, ensuring complete type safety and structural integrity across the graph.
+
+System Integration: Merge individual guardrail layers into a single, cohesive state machine, ensuring error-handling nodes gracefully route data without deadlocking the graph.
+
+Professional Communication: Articulate a quantified, domain-specific engineering story about a failure you isolated and solved, formatted explicitly for technical job interviews.
+
+Note: The programming language and specific domain are tools to achieve these goals. The underlying state-machine architecture and system reliability patterns are what matter.
+
+🏗️ The Big Picture: A "Generic Task Orchestrator" with High-Stakes Domain
+Your team is building ONE unified system: “The Generic Task Orchestrator”—a multi-agent system featuring 1 central Coordinator node and 4 specialized Worker nodes.
+
+Your Team Must Pick ONE Domain to Instantiate the System:
+Choose a domain where non-deterministic AI behavior has real-world consequences (high stakes):
+
+🛡️ Autonomous Incident Response: Monitor → Diagnose → Patch → Report on enterprise server outages.
+
+📈 Financial Trading Bot: Market Analysis → Trade Execution → Risk/Compliance Check → Audit Logging.
+
+⚖️ Legal Contract Review: Clause Extraction → Risk Analysis → Redline Generation → Counter-Party Verification.
+
+🧬 Bioinformatics Pipeline: Sequence Alignment → Variant Annotation → Validation → Synthesis Report.
+
+📚 Academic Research Assistant: Lit Review Search → Synthesis → Critique → Draft Compilation.
+
+Why This Approach?
+Chassis vs. Skin: The architecture (Coordinator + Workers + Guardrails) is the engineering core. The domain is simply the "skin."
+
+High Stakes Equal High Rigor: Real-world risks force your team to treat failure modes with production-level seriousness (e.g., preventing an LLM from executing an unsafe trade or leaking PII).
+
+Modular Engineering: The entire team builds one working Orchestrator. Each student owns ONE specific guardrail or engineering layer. The car only drives if all 6 engineering components integrate seamlessly.
+
+🏛️ Unified System Architecture & Dynamic Routing Graph
+Unlike a naive, linear pipeline, your multi-agent architecture utilizes a central Coordinator that dynamically routes execution based on the current state and explicit validation flags.
+
+                  ┌──────────────────────────────┐
+                  ▼                              │ (Loop / Self-Correction)
+               [ 0. Coordinator Node ] ──────────┼──────────────┐
+                  │              ▲               │              │
+                  │ (Route A)    │ (Error Flag)  │ (Route B)    │ (Route C)
+                  ▼              │               ▼              ▼
+     [ 1. Worker A: Analyzer ] ──┘     [ 2. Worker B: Actor ]   [ 4. Worker D: Reporter ]
+                  │                              │
+                  │ (Valid Schema)               │ (Execution State)
+                  ▼                              ▼
+     [ 5. Worker C: Validator ] ◄────────────────┘
+Team Role Assignment Matrix
+Each student owns a specific node or layer within the unified architecture. You are individually responsible for programmatically injecting failures and building the corresponding code-based guardrail.
+
+Agent Node / Layer	Core Responsibility	Student Owner	Critical Failure Mode to Solve
+0. Coordinator (Orchestrator)	Receives task → Evaluates state → Routes to specialized workers → Halts execution.	Student 1	Infinite Graph Loops: LLM gets stuck in an adversarial loop, re-executing steps endlessly.
+1. Worker A (Analyzer)	Extracts unstructured payload information and converts it to a structured format using LLM features like .with_structured_output().	Student 2	Silent Hallucination: LLM generates structurally valid but completely incorrect data (e.g., missing critical codes).
+2. Worker B (Actor)	Maps parsed commands into executable functions. Must call system tools.	Student 3	Rogue Tool Execution: LLM attempts to execute unauthorized, dangerous actions or malformed parameters.
+3. Worker C (Validator)	Downstream validation node. Evaluates system actions against initial analysis before final reporting.	Student 4	Downstream Cascade Failure: Upstream bad data completely breaks logic in downstream application layers.
+4. Global Graph Layer (Tracing & Privacy)	Manages telemetry data pipelines and logging configurations across all graph state transformations.	Student 5	Data Privacy Leak (Tracing): PII or system secrets are leaked directly to external observability dashboards (LangSmith).
+5. Global Graph Layer (Context/Token Manager)	Intercepts graph state history right before routing to keep the system cost-efficient and lightweight.	Student 6	Context Window Explosion / Token Burn: Chat history bloats, driving latency up and causing massive API costs.
+🛠️ Tooling & Build Strategy
+Your team must align on ONE unified language stack inside a single repository.
+
+Option A: Recommended Stack (Python)
+Framework: LangGraph (with LangChain Core)
+
+Observability: LangSmith (for telemetry monitoring)
+
+Dependencies: pip install langgraph langchain-core pydantic langsmith
+
+Option B: Alternative Stack (TypeScript)
+Framework: LangGraph.js (with LangChain Express/Core)
+
+Observability: LangSmith TS SDK
+
+Dependencies: npm install @langchain/langgraph @langchain/core zod
+
+⚠️ Zero-Tolerance Multi-Language Rule: The entire project must share a single runtime environment. You cannot have some students writing in Python and others writing in TypeScript inside the same repository.
+
+📋 The 6 Critical Failure Modes & Engineering Guardrail Requirements
+To secure full credit, your guardrail cannot be a soft prompt amendment (e.g., "Don't loop forever"). It must be implemented in code.
+
+1. Infinite Graph Loops (Student 1)
+The Failure: The Coordinator node continuously re-routes tasks back to an upstream node because the LLM fails to reach a terminating condition, threatening to drain budget API tokens.
+
+The Guardrail: Implement a strict, deterministic state["round_number"] tracker directly into the LangGraph routing logic. If round_number >= 5, short-circuit the graph flow, gracefully degrade, and route straight to a final partial state output node.
+
+2. Silent Hallucinations & Structural Failures (Student 2)
+The Failure: Worker A receives unformatted data, outputs a confident text answer that misses critical domain identifiers, causing silent processing failures downstream.
+
+The Guardrail: Force Worker A to use an explicit schema object via .with_structured_output(ContractSchema). Catch raw LLM schema parsing validation errors programmatically within an error handling wrapper, then route the error exception text back to the node once for an automated self-correcting retry.
+
+3. Rogue Tool Execution (Student 3)
+The Failure: Worker B receives a prompt that triggers a jailbreak or an un-vetted tool invocation parameter, generating a destructive call payload.
+
+The Guardrail: Build a functional, dynamic tool runtime execution middleware. Intercept the LLM's requested tool call array before execution. Validate the request against a hardcoded lookup configuration matrix. If the tool or argument parameters violate the runtime permissions, throw an InvalidToolCallException and abort execution.
+
+4. Downstream Cascade Failure (Student 4)
+The Failure: Worker B passes malformed, unvalidated output data across the state directly into Worker C, causing runtime application crashes or arithmetic type errors in downstream code.
+
+The Guardrail: Create an explicit Validation/Sanitization Node between Worker B and Worker C. This node must parse the incoming state variable using programmatic assertions. If the structural invariants fail, it updates the state with a rejection flag and forces a rollback/routing routine.
+
+5. Data Privacy Leak via Telemetry (Student 5)
+The Failure: The system correctly streams executions to LangSmith for tracking, but unintentionally leaks raw API keys, corporate database names, or user PII to cloud telemetry storage.
+
+The Guardrail: Build a centralized State Redaction Interceptor. Programmatically scrub sensitive keys or match regular expressions for high-risk strings within the graph payload metadata before sending tracing logs to LangSmith or alternative external logging endpoints.
+
+6. Context Window Explosion & Token Burn (Student 6)
+The Failure: The multi-agent graph runs through multiple turns, creating a massive, redundant list of state["messages"]. This results in exploding input token costs and slow response latencies.
+
+The Guardrail: Implement a specialized Context Management Node executing at the start of loop transitions. This node calculates total message tokens. If the system exceeds a specific length threshold, it programmatically summarizes past conversation histories, prunes intermediate tool outputs, and updates the state message window while preserving the system's core state values.
+
+🛡️ THE CONTRACT RULE (MANDATORY)
+Before a single student writes any individual guardrail code, the team must design and commit a shared Schema File (contract.py or contract.ts). This serves as the universal structural contract for the entire system's state management.
+
+Python
+# Example Language-Agnostic Concept (Python / Pydantic Example)
+from pydantic import BaseModel, Field
+from typing import List, Dict, Any, Optional
+
+class AgentState(BaseModel):
+    task_domain: str
+    raw_input: str
+    round_number: int = 0
+    is_validated: bool = False
+    error_log: Optional[str] = None
+    analysis_payload: Dict[str, Any] = Field(default_factory=dict)
+    sanitized_tool_calls: List[str] = Field(default_factory=list)
+Contract Freeze Milestone
+The team must commit this file to the repository. Once committed, the file is frozen. If you change your agent's state structure later without a documented team-wide review, you will break the codebase merge and lose individual structural integrity marks.
+
+🛠️ Deliverables & File Structure
+Your team will deliver one single, cohesive repository organized as follows:
+
+Plaintext
+/orchestrator-{domain}/
+  ├── README.md                      # Team setup, domain introduction, chosen language stack
+  ├── DESIGN_DOCS.md                 # 1-page summary detailing 19 alternative failure risks considered
+  ├── INTERVIEW_STORIES.md           # Combined file containing all 6 individual 150-word interview scripts
+  ├── contract.py                    # THE MANDATORY CONTRACT (Frozen Pydantic / Zod Schemas)
+  ├── main_system.py                 # The unified, functioning Orchestrator graph containing all 6 active guardrails
+  │
+  ├── [student_1_loop]/
+  │     ├── snippet.py               # Target implementation isolation view
+  │     └── test_failure.py          # Reproduction script: Triggers infinite loop (Guardrail disabled)
+  ├── [student_2_silent]/
+  │     ├── snippet.py
+  │     └── test_failure.py          # Reproduction script: Triggers unvalidated silent hallucination
+  ├── [student_3_rogue]/
+  │     ├── snippet.py
+  │     └── test_failure.py          # Reproduction script: Triggers unauthorized tool execution
+  ├── [student_4_cascade]/
+  │     ├── snippet.py
+  │     └── test_failure.py          # Reproduction script: Triggers downstream code crash via bad state data
+  ├── [student_5_trace]/
+  │     ├── snippet.py
+  │     └── test_failure.py          # Reproduction script: Triggers raw PII text leak to logger
+  └── [student_6_tokens]/
+        ├── snippet.py
+        └── test_failure.py          # Reproduction script: Triggers chat bloat context explosion
+Each Student's Individual Directory Must Contain:
+snippet.py: An isolated code snippet showing exactly where your programmatic guardrail sits within the broader graph logic.
+
+test_failure.py: A deterministic test script that runs your agent node without the guardrail active to showcase the failure mode natively in your domain.
+
+Metrics Documented in Markdown: A clear before-and-after baseline analysis (e.g., “Loop count: infinite → 5 iterations”, “Leaked PII records: 14 → 0”, “Token spend per failure event: $4.50 → $0.12”).
+
+Failure/Success Demonstration Video: A 2-minute clean screen recording demonstrating your node failing under pressure, followed by the guardrail safely trapping the exception.
+
+Combined Team Deliverables:
+One 5-Minute Technical Video Demo: Walk through the complete system running end-to-end with all 6 guardrails active. You must show the graph managing conditional state changes dynamically. Provide a clear voiceover detailing your chosen domain and architecture.
+
+INTERVIEW_STORIES.md: A file containing 6 distinct, highly quantified professional descriptions of what you built, following the framework below.
+
+📊 Grading Rubric (Total: 100 Points)
+💡 Individual Accountability Policy: Your individual grade is decoupled from the team grade. If a teammate fails to submit their individual code folder or video components, they lose their individual 70 points. The remaining team members are graded on their respective components and the functional integration of the remaining active layers within main_system.py.
+
+┌────────────────────────────────────────────────────────────────────────┐
+│                        INDIVIDUAL GRADES (70 PTS)                      │
+├──────────────────────────────┬─────────────────────────────────────────┤
+│ Failure Video Demonstration  │ 20 Pts: Clear breakdown showing the code│
+│                              │ failure mode running without guardrail. │
+├──────────────────────────────┼─────────────────────────────────────────┤
+│ Guardrail Code Execution     │ 20 Pts: Clean, algorithmic guardrail    │
+│                              │ verifying state data against Contract.  │
+├──────────────────────────────┼─────────────────────────────────────────┤
+│ Quantitative Metrics         │ 15 Pts: Concrete numerical optimization │
+│                              │ data showing before/after performance.  │
+├──────────────────────────────┼─────────────────────────────────────────┤
+│ Professional Interview Story │ 15 Pts: Compelling, 150-word narrative  │
+│                              │ using technical terms and metrics.      │
+└──────────────────────────────┴─────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────────────────┐
+│                          TEAM GRADES (30 PTS)                          │
+├──────────────────────────────┬─────────────────────────────────────────┤
+│ Contract & Graph Freeze      │ 10 Pts: Initial validation schema and   │
+│                              │ design tree committed on Day 1.         │
+├──────────────────────────────┼─────────────────────────────────────────┤
+│ Integrated Graph Execution   │ 15 Pts: Main pipeline loops and handles │
+│                              │ errors end-to-end without deadlocking.   │
+├──────────────────────────────┼─────────────────────────────────────────┤
+│ System Design Documentation  │ 5 Pts: Architectural analysis of the   │
+│                              │ alternative failure mitigations.        │
+└──────────────────────────────┴─────────────────────────────────────────┘
+🛑 STRICT SAFETY MANDATE (NON-NEGOTIABLE)
+All actions interacting with external infrastructure must be mocked. You must NEVER write code that calls genuine database table deletions, infrastructure removal scripts, live financial trading executions, or file modifications—even inside your broken test failure instances.
+
+❌ INCORRECT & DANGEROUS: os.system("rm -rf /var/log/nginx/*")
+
+CORRECT & SAFE: print("CRITICAL: PROD INFRASTRUCTURE DELETION TARGETED -> MOCK EXECUTION BLOCKED")
+
+⚠️ Violation Policy: Any code snippet uploaded that executes real destructive commands against system environments will trigger an automatic 20-point deduction from the team's entire system submission.
+
+🚀 Why This Assignment Makes You Hireable
+When you sit down with engineering managers, you will have a clear, quantified story about multi-agent systems engineering:
+
+“During my Master's program, I co-developed an Autonomous Incident Response multi-agent platform using LangGraph. The system utilized a Coordinator node managing 4 distinct specialized workers. I owned the Context/Token Optimization Layer.
+
+In high-turn operational outages, the system's chat history quickly expanded, triggering context window bloat that resulted in high API processing costs and increased latency. To solve this, I designed an algorithmic context management guardrail that monitored message token lengths against a strict Pydantic data schema.
+
+When token limits were breached, my guardrail parsed the history, stripped intermediate execution logs, and condensed historical message chains. This modification reduced overall token consumption by 74%, dropped turn latencies from 8 seconds down to 1.8 seconds, and guaranteed system cost efficiency while maintaining total situational context during complex loops.”
+
+This is the precise technical narrative that hiring managers look for. Begin by defining your schemas on Day 1, freeze the contract, and build a reliable system. 🚀

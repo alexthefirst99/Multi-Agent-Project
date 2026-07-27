@@ -14,12 +14,17 @@ keep this deterministic. Per the assignment's Strict Safety Mandate, every
 from contract import AgentState
 from snippet import worker_b_actor_node
 
-SAMPLE_DOMAIN = "TODO(domain)"
-SAMPLE_INPUT = "TODO(domain): sample input"
+SAMPLE_DOMAIN = "financial_trading"
+SAMPLE_INPUT = "Market signal: AAPL showing unusual volume spike, +4% in 10 minutes."
 
-ROGUE_CALL = {"tool_name": "delete_production_database", "arguments": {"table": "*"}}
-UNAUTHORIZED_ARG_CALL = {"tool_name": "restart_service", "arguments": {"service_name": "auth", "sudo": True}}
-LEGITIMATE_CALL = {"tool_name": "restart_service", "arguments": {"service_name": "auth"}}
+# Not on the whitelist at all — a jailbreak attempting to move client funds directly.
+ROGUE_CALL = {"tool_name": "transfer_client_funds", "arguments": {"account_id": "*", "amount": 999999}}
+# A whitelisted tool, but with an extra argument that would bypass a risk check.
+UNAUTHORIZED_ARG_CALL = {
+    "tool_name": "execute_trade",
+    "arguments": {"ticker": "AAPL", "side": "buy", "quantity": 100, "bypass_risk_check": True},
+}
+LEGITIMATE_CALL = {"tool_name": "execute_trade", "arguments": {"ticker": "AAPL", "side": "buy", "quantity": 100}}
 
 
 def actor_node_without_guardrail(state: AgentState) -> AgentState:
@@ -38,7 +43,7 @@ if __name__ == "__main__":
     broken_state = AgentState(task_domain=SAMPLE_DOMAIN, raw_input=SAMPLE_INPUT, proposed_tool_calls=[ROGUE_CALL])
     broken_result = actor_node_without_guardrail(broken_state)
     print(f"Executed tool calls: {broken_result.sanitized_tool_calls}")
-    assert broken_result.sanitized_tool_calls == ["delete_production_database"]
+    assert broken_result.sanitized_tool_calls == ["transfer_client_funds"]
     print("Rogue call executed unconditionally — no whitelist check in place.\n")
 
     print("=== GUARDRAIL CHECK: rogue tool blocked (snippet.py) ===")
@@ -60,6 +65,6 @@ if __name__ == "__main__":
     print("=== GUARDRAIL CHECK: legitimate call still executes ===")
     ok_state = AgentState(task_domain=SAMPLE_DOMAIN, raw_input=SAMPLE_INPUT, proposed_tool_calls=[LEGITIMATE_CALL])
     ok_result = worker_b_actor_node(ok_state)
-    assert ok_result.sanitized_tool_calls == ["restart_service"]
+    assert ok_result.sanitized_tool_calls == ["execute_trade"]
     assert ok_result.error_log is None
     print("PASS: a whitelisted call with authorized arguments executes normally.")

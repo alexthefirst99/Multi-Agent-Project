@@ -1,9 +1,10 @@
 # Metrics — Student 3 — Rogue Tool Execution
 
 Measured by running `test_failure.py` (see repo for the exact script) against
-one rogue call (`delete_production_database`), one whitelisted-tool-but-bad-argument
-call (`restart_service` with an unauthorized `sudo` flag), and one legitimate
-call (`restart_service` with only `service_name`).
+one rogue call (`transfer_client_funds`, not on the whitelist at all), one
+whitelisted-tool-but-bad-argument call (`execute_trade` with an unauthorized
+`bypass_risk_check` flag), and one legitimate call (`execute_trade` with only
+`ticker`/`side`/`quantity`).
 
 | Metric | Before (guardrail disabled) | After (guardrail enabled) |
 |---|---|---|
