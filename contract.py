@@ -1,74 +1,232 @@
-"""
-THE MANDATORY CONTRACT — frozen shared schema for the Generic Task Orchestrator.
+"""Canonical frozen Pydantic contract shared by every graph component.
 
-This is the team's Day-1 deliverable per the assignment's Contract Rule.
-Every node reads and writes state ONLY through this schema. Once the whole
-team reviews and commits this file, it is FROZEN — extend it here, together,
-before any individual guardrail work starts. Do not edit unilaterally.
+Contract version: 2.0.0
+Freeze status: FROZEN
+Domain: Financial Trading Bot
 
-STATUS: DRAFT, NOT YET FROZEN. Below is a proposed complete version, worked
-out by reasoning through what each of the 6 guardrails needs to read/write —
-but per the Contract Rule this still needs an actual team review/sign-off
-before it counts as frozen. If anyone finds a gap once they start coding,
-raise it with the team rather than editing this file solo.
-
-Field ownership (who needs what, and why):
-  - task_domain, raw_input        — shared task framing (all nodes)
-  - round_number                  — Student 1 (Coordinator): compared against
-                                     a hardcoded `5` in the routing guardrail,
-                                     per the assignment's literal wording
-                                     ("if round_number >= 5") — no separate
-                                     max_rounds field needed.
-  - error_log                     — SHARED, reused by every guardrail as the
-                                     "what went wrong last" channel (Student 2's
-                                     schema-validation error text, Student 3's
-                                     blocked-tool message, Student 4's cascade
-                                     rejection reason). Kept singular and
-                                     generic to match the original example
-                                     rather than adding a dedicated field per
-                                     student.
-  - analysis_payload              — Student 2 (Analyzer): the validated,
-                                     structured-output result.
-  - analysis_retry_count           — Student 2: tracks the single automated
-                                     self-correcting retry budget.
-  - proposed_tool_calls            — Student 3 (Actor): raw, not-yet-validated
-                                     tool call requests, each shaped like
-                                     {"tool_name": str, "arguments": dict}.
-  - sanitized_tool_calls           — Student 3: tool *names* that passed the
-                                     whitelist check (matches the original
-                                     example's List[str] type).
-  - tool_execution_results         — Student 3 writes it (result of executing
-                                     each sanitized call), Student 4 (Validator)
-                                     reads it to assert structural invariants
-                                     before Worker C uses it.
-  - is_validated                   — Student 4: whether Worker C's cross-check
-                                     passed.
-  - messages                       — Student 6 (Context/Token Manager): the
-                                     running conversation/tool-output history
-                                     it prunes.
-  - messages_pruned_count          — Student 6: how many messages were dropped,
-                                     for the before/after metrics table.
-
-Student 5 (Tracing & Privacy) needs no dedicated field — its redaction
-interceptor operates on the LangSmith callback payload at emit time, not on
-AgentState directly.
+The intentionally untrusted boundary fields are ``pending_tool_calls`` and
+``pending_actor_output``. Guardrails must parse those JSON-compatible values
+before promoting them into the typed, authoritative fields.
 """
 
-from typing import Any, Dict, List, Optional
+from __future__ import annotations
 
-from pydantic import BaseModel, Field
+from typing import Annotated, Literal, Union
+
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    JsonValue,
+    model_validator,
+    field_validator,
+)
+
+CONTRACT_VERSION = "2.0.0"
+CONTRACT_FROZEN = True
+MAX_COORDINATOR_ROUNDS = 5
+
+NodeName = Literal[
+    "context_manager",
+    "coordinator",
+    "worker_a_analyzer",
+    "worker_b_actor",
+    "worker_c_validator",
+    "worker_d_reporter",
+]
+RouteName = Literal[
+    "worker_a_analyzer",
+    "worker_b_actor",
+    "worker_d_reporter",
+]
+TerminationReason = Literal[
+    "completed",
+    "round_limit_reached",
+    "analysis_schema_error",
+    "tool_guard_rejection",
+    "cascade_rejection",
+]
+MessageRole = Literal["system", "user", "assistant", "tool"]
+MessageKind = Literal[
+    "system_instruction",
+    "conversation",
+    "tool_output",
+    "summary",
+]
+TradeSide = Literal["buy", "sell"]
+RiskLevel = Literal["low", "medium", "high"]
+ErrorCode = Literal[
+    "analysis_schema_error",
+    "unauthorized_tool_call",
+    "malformed_actor_output",
+    "business_validation_error",
+    "round_limit_reached",
+    "tracing_error",
+]
 
 
-class AgentState(BaseModel):
-    task_domain: str
-    raw_input: str
-    round_number: int = 0
+class StrictModel(BaseModel):
+    model_config = ConfigDict(extra="forbid", validate_assignment=True, strict=True)
+
+
+class MessageRecord(StrictModel):
+    role: MessageRole
+    content: str = Field(min_length=1)
+    kind: MessageKind = "conversation"
+    name: str | None = None
+    essential: bool = False
+    obsolete: bool = False
+
+    @model_validator(mode="before")
+    @classmethod
+    def preserve_system_messages(cls, value: object) -> object:
+        if isinstance(value, dict):
+            data = dict(value)
+            if data.get("role") == "system" or data.get("kind") == "system_instruction":
+                data["essential"] = True
+                data["kind"] = "system_instruction"
+            return data
+        return value
+
+
+class AnalysisPayload(StrictModel):
+    ticker: str = Field(min_length=1, max_length=10, pattern=r"^[A-Z0-9.\-]+$")
+    side: TradeSide
+    quantity: int = Field(gt=0, le=1_000)
+    confidence: float = Field(ge=0.0, le=1.0)
+    rationale: str = Field(min_length=10, max_length=1_000)
+    risk_level: RiskLevel
+
+    @field_validator("ticker", mode="before")
+    @classmethod
+    def normalize_ticker(cls, value: object) -> object:
+        return value.strip().upper() if isinstance(value, str) else value
+
+
+class ExecuteTradeArguments(StrictModel):
+    ticker: str = Field(min_length=1, max_length=10, pattern=r"^[A-Z0-9.\-]+$")
+    side: TradeSide
+    quantity: int = Field(gt=0, le=1_000)
+
+    @field_validator("ticker", mode="before")
+    @classmethod
+    def normalize_ticker(cls, value: object) -> object:
+        return value.strip().upper() if isinstance(value, str) else value
+
+
+class CancelOrderArguments(StrictModel):
+    order_id: str = Field(min_length=3, max_length=64, pattern=r"^[A-Za-z0-9_-]+$")
+
+
+class ComplianceAlertArguments(StrictModel):
+    severity: Literal["low", "medium", "high", "critical"]
+    message: str = Field(min_length=5, max_length=1_000)
+
+
+class ExecuteTradeRequest(StrictModel):
+    tool_name: Literal["execute_trade"]
+    arguments: ExecuteTradeArguments
+
+
+class CancelOrderRequest(StrictModel):
+    tool_name: Literal["cancel_order"]
+    arguments: CancelOrderArguments
+
+
+class ComplianceAlertRequest(StrictModel):
+    tool_name: Literal["send_compliance_alert"]
+    arguments: ComplianceAlertArguments
+
+
+ToolRequest = Annotated[
+    Union[ExecuteTradeRequest, CancelOrderRequest, ComplianceAlertRequest],
+    Field(discriminator="tool_name"),
+]
+
+
+class ToolExecutionResult(StrictModel):
+    tool_name: Literal["execute_trade", "cancel_order", "send_compliance_alert"]
+    success: bool
+    status: Literal["mock_success", "mock_cancelled", "mock_alerted", "mock_failed"]
+    reference_id: str = Field(min_length=3, max_length=100)
+    ticker: str | None = Field(default=None, max_length=10)
+    side: TradeSide | None = None
+    quantity: int | None = Field(default=None, gt=0, le=1_000)
+    message: str | None = Field(default=None, max_length=1_000)
+
+    @field_validator("ticker", mode="before")
+    @classmethod
+    def normalize_optional_ticker(cls, value: object) -> object:
+        return value.strip().upper() if isinstance(value, str) else value
+
+
+class ValidationResult(StrictModel):
+    accepted: bool
+    rollback_required: bool = False
+    reason: str
+    checked_items: int = Field(default=0, ge=0)
+
+
+class GraphError(StrictModel):
+    code: ErrorCode
+    message: str = Field(min_length=1)
+    node: NodeName
+    recoverable: bool
+
+
+class RouteAuditEntry(StrictModel):
+    round_number: int = Field(ge=1)
+    next_route: RouteName
+    reason: str
+    degraded: bool
+
+
+class ContextMetrics(StrictModel):
+    before_tokens: int = Field(default=0, ge=0)
+    after_tokens: int = Field(default=0, ge=0)
+    pruned_messages: int = Field(default=0, ge=0)
+    summarized_messages: int = Field(default=0, ge=0)
+
+
+class AgentState(StrictModel):
+    """Universal graph state. No node may redefine this schema."""
+
+    task_domain: Literal["financial_trading_bot"] = "financial_trading_bot"
+    raw_input: str = Field(min_length=1)
+
+    # Coordinator and deterministic loop guard.
+    round_number: int = Field(default=0, ge=0)
+    max_rounds: Literal[5] = MAX_COORDINATOR_ROUNDS
+    next_route: RouteName | None = None
+    route_reason: str | None = None
+    routing_history: list[RouteAuditEntry] = Field(default_factory=list)
+    degraded_output: bool = False
+    termination_reason: TerminationReason | None = None
+
+    # Structured analyzer output.
+    analysis_payload: AnalysisPayload | None = None
+    analysis_retry_count: int = Field(default=0, ge=0, le=1)
+    analysis_schema_error: bool = False
+
+    # Tool boundary, approved requests, and actor boundary.
+    pending_tool_calls: list[JsonValue] = Field(default_factory=list)
+    approved_tool_calls: list[ToolRequest] = Field(default_factory=list)
+    pending_actor_output: list[JsonValue] = Field(default_factory=list)
+    tool_execution_results: list[ToolExecutionResult] = Field(default_factory=list)
+
+    # Validator state and rollback routing.
+    validation_result: ValidationResult | None = None
+    rejection_flag: bool = False
+    rejection_reason: str | None = None
+    rollback_requested: bool = False
     is_validated: bool = False
-    error_log: Optional[str] = None
-    analysis_payload: Dict[str, Any] = Field(default_factory=dict)
-    analysis_retry_count: int = 0
-    proposed_tool_calls: List[Dict[str, Any]] = Field(default_factory=list)
-    sanitized_tool_calls: List[str] = Field(default_factory=list)
-    tool_execution_results: List[Dict[str, Any]] = Field(default_factory=list)
-    messages: List[Dict[str, Any]] = Field(default_factory=list)
-    messages_pruned_count: int = 0
+
+    # Context and privacy metadata.
+    messages: list[MessageRecord] = Field(default_factory=list)
+    context_summary: str | None = None
+    context_metrics: ContextMetrics = Field(default_factory=ContextMetrics)
+    privacy_redaction_count: int = Field(default=0, ge=0)
+
+    # Explicit errors and final reporting.
+    errors: list[GraphError] = Field(default_factory=list)
+    final_report: str | None = None

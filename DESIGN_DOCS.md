@@ -1,71 +1,37 @@
-# Design Docs — Alternative Failure Risks Considered
+# Design Docs — Nineteen Failure Risks Considered
 
-> **Domain: Financial Trading Bot** (Market Analysis → Trade Execution →
-> Risk/Compliance Check → Audit Logging). The 6 primary failure modes (one
-> per student) are listed first as reference; the team still needs to add
-> the remaining 13 risks below, now with real trading-domain manifestations
-> (e.g. stale market data, race conditions between concurrent trades,
-> regulatory/compliance drift) — even ones you decided NOT to build a
-> guardrail for; explain why not.
+## Architecture Summary
 
-## 1. Architecture Recap
+The system is a stateful LangGraph financial-trading orchestrator with one Coordinator and four Workers. The Context Manager runs before each Coordinator visit. The Coordinator routes to Worker A (Analyzer), Worker B (Actor), or Worker D (Reporter); Workers A and B both pass through Worker C (Validator), which returns control to the Context Manager. Worker D terminates the graph. Root-level `contract.py` is the frozen interface, production graph code lives under `orchestrator/`, and the presentation UI lives under `app/`. Student folders are grading views, and every external action is mocked.
 
-- **Coordinator + 4 Workers** topology (see `main_system.py` for the graph).
-- State passed between every node exclusively through `contract.py`'s `AgentState`.
-- 6 guardrail layers, one per student — see `README.md` ownership table.
+## Risk Register
 
-## 2. Primary Failure Modes (one per student)
+| # | Failure risk | Trading-domain manifestation | Decision and mitigation |
+|---:|---|---|---|
+| 1 | Infinite graph loop | Repeated Analyzer rollback consumes tokens without reaching a report | Implemented deterministic round counter and forced degraded report at visit 5 |
+| 2 | Silent hallucination / structural failure | Analyzer omits ticker or emits invalid quantity while appearing confident | Implemented Pydantic structured output and exactly one correction retry |
+| 3 | Rogue tool execution | Prompt injection requests fund transfer or bypasses risk checks | Implemented registered mock-tool whitelist, permission matrix, strict arguments, bounds, and atomic batch validation |
+| 4 | Downstream cascade failure | String quantity or malformed result crashes Validator arithmetic | Implemented explicit boundary sanitization, typed parsing, rejection, and rollback flags |
+| 5 | Privacy leak in telemetry | Email, SSN, API key, or production database identifier reaches LangSmith | Implemented recursive non-mutating redaction and disabled automatic raw tracing |
+| 6 | Context-window explosion | Repeated tool outputs and history increase latency and token spend | Implemented token measurement, obsolete-output pruning, summarization, and recent-turn retention |
+| 7 | Prompt injection in market text | News text instructs the model to ignore permissions | Tool permissions remain deterministic code; untrusted text cannot register tools |
+| 8 | Valid tool name with adversarial values | `execute_trade` requests zero, negative, or oversized quantity | Pydantic bounds restrict quantity to 1–1,000 and reject extra arguments |
+| 9 | Partial batch execution | First trade executes before a later rogue call is detected | Entire batch is validated before the first mocked handler runs |
+| 10 | Stale market data | A valid-looking signal refers to an outdated price | Not implemented; external market-data freshness is outside this assignment and all data is mocked |
+| 11 | Race condition between trades | Concurrent runs modify the same portfolio | Not implemented; no shared portfolio or live side effects exist in the assignment runtime |
+| 12 | Contract version drift | A branch uses old field names after a schema change | Frozen contract version, strict extra-field rejection, and contract regression tests |
+| 13 | Coordinator routes to a removed node | Refactor leaves a stale conditional-edge target | Central route literals and graph topology tests verify every destination exists |
+| 14 | Model refusal or empty response | Empty output is treated as a usable analysis | Structured schema rejects missing fields; second failure becomes an explicit graph error |
+| 15 | Telemetry outage | LangSmith failure silently hides observability loss | Trace wrapper converts the exception into a typed recoverable `tracing_error` without corrupting business state |
+| 16 | Over-redaction | Privacy filter destroys legitimate ticker or quantity data | Redaction runs on a deep copy used only for telemetry; authoritative state is unchanged |
+| 17 | Context summary loses critical instructions | Pruning removes the no-real-trades safety rule | System instructions and `essential=True` messages are always retained |
+| 18 | Non-deterministic failure demos | Live model variability makes grading unreliable | Every individual demo uses scripted responses, adversarial fixtures, or pure mock handlers |
+| 19 | Real destructive side effect in a failure demo | A demo accidentally calls a brokerage, shell, or database | Tool registry contains only pure mock handlers; safety checks and repository review ban destructive clients |
 
-| # | Failure Mode | Node | Guardrail Summary |
-|---|---|---|---|
-| 1 | Infinite Graph Loops | Coordinator | Hard `round_number >= 5` circuit breaker → forced route to degraded report |
-| 2 | Silent Hallucination | Worker A | `.with_structured_output()` + one automated self-correcting retry on schema error |
-| 3 | Rogue Tool Execution | Worker B | Tool-call whitelist matrix checked before execution; throws `InvalidToolCallException` on violation |
-| 4 | Downstream Cascade Failure | Validator node | Explicit sanitize/assert node between Worker B and Worker C; rejects + rolls back on invariant failure |
-| 5 | Data Privacy Leak (Telemetry) | Global tracing layer | Redaction interceptor scrubs PII/secrets before LangSmith ingestion |
-| 6 | Context Window Explosion | Global context layer | Token-threshold check + summarization/pruning before each loop transition |
+## Contract Rationale
 
-## 3. Additional Failure Risks Considered (fill in ~13 more)
+Stable business structures use explicit Pydantic models. Only two fields remain intentionally untrusted: raw tool requests and raw Actor results. This preserves realistic boundary testing while preventing malformed data from entering authoritative fields. `strict=True`, `extra="forbid"`, assignment validation, discriminated tool unions, explicit error models, and `Literal[5]` for the round limit make violations visible early.
 
-For each: what could go wrong, why it matters for **this domain**, and
-whether the team built a guardrail for it or explicitly decided not to
-(and why — usually "out of scope for this assignment" or "covered by an
-existing guardrail" is a fine answer).
+## Dependency Injection
 
-| # | Risk | Domain-Specific Manifestation | Mitigated? | Notes |
-|---|---|---|---|---|
-| 7 | TODO | TODO | Yes / No | TODO |
-| 8 | TODO | TODO | Yes / No | TODO |
-| 9 | TODO | TODO | Yes / No | TODO |
-| 10 | TODO | TODO | Yes / No | TODO |
-| 11 | TODO | TODO | Yes / No | TODO |
-| 12 | TODO | TODO | Yes / No | TODO |
-| 13 | TODO | TODO | Yes / No | TODO |
-| 14 | TODO | TODO | Yes / No | TODO |
-| 15 | TODO | TODO | Yes / No | TODO |
-| 16 | TODO | TODO | Yes / No | TODO |
-| 17 | TODO | TODO | Yes / No | TODO |
-| 18 | TODO | TODO | Yes / No | TODO |
-| 19 | TODO | TODO | Yes / No | TODO |
-
-Ideas to consider pulling from (delete what doesn't apply to trading):
-- Prompt injection via untrusted tool/API output re-entering the LLM context
-- Coordinator routing to a dead/removed node after refactor (graph integrity)
-- Race conditions if any nodes are parallelized
-- Stale/cached LLM structured-output schema drifting from `contract.py`
-- Cost blowup from retries compounding with loop guardrail near the round limit
-- Tool call with valid name but out-of-range/adversarial argument values
-- Partial state corruption if a node crashes mid-write
-- Non-determinism making `test_failure.py` repro scripts flaky
-- Over-redaction in the privacy layer silently destroying legitimate data the report needs
-- Human-in-the-loop bypass — no approval gate before a destructive-sounding action
-- Model refusal / empty completion treated as a valid result downstream
-- Versioning drift between `contract.py` and a node that wasn't updated after a team review
-- Multi-tenant state bleed if the orchestrator is ever run concurrently for two users
-
-## 4. Contract Design Rationale
-
-TODO(team): document why `contract.py` is shaped the way it is once it's
-extended and frozen — e.g. why domain-specific content should probably stay
-inside `analysis_payload: Dict[str, Any]` rather than as typed top-level
-fields, so the frozen contract doesn't need to change per domain.
+The graph receives its chat model, tool registry, token counter, summarizer, and tracer through `OrchestratorDependencies`. Tests replace each network-facing dependency with deterministic fakes. Production clients are created lazily at startup, never during import.

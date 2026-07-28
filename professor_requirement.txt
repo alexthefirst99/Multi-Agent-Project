@@ -155,7 +155,7 @@ Plaintext
   ├── contract.py                    # THE MANDATORY CONTRACT (Frozen Pydantic / Zod Schemas)
   ├── main_system.py                 # The unified, functioning Orchestrator graph containing all 6 active guardrails
   │
-  ├── [student_1_loop]/
+  ├── [Quynh_loop]/
   │     ├── snippet.py               # Target implementation isolation view
   │     └── test_failure.py          # Reproduction script: Triggers infinite loop (Guardrail disabled)
   ├── [student_2_silent]/

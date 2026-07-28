@@ -1,53 +1,25 @@
 # Interview Stories
 
-One ~150-word, quantified, technical-interview-ready story per student,
-following the framework from the assignment:
+## 1. Quynh — Coordinator / Infinite Graph Loops
 
-> Situation (what broke) → Action (the algorithmic guardrail you built) →
-> Result (quantified before/after metrics).
+In a graduate multi-agent reliability project, I owned the Coordinator for a LangGraph financial-trading orchestrator. An adversarial Validator repeatedly requested rollback, causing a naive Coordinator to route back to the Analyzer without reaching termination. I replaced model-dependent stopping with deterministic routing tied to the frozen Pydantic contract. On every Coordinator visit, the guardrail increments `round_number`, records a typed route-audit entry, and checks the five-round boundary before another correction cycle can begin. When the limit is reached, the graph preserves analysis and errors, marks the result degraded, records a `round_limit_reached` failure, and routes directly to the Reporter for a partial output. I also added boundary, malformed-input, routing-precedence, mutation-safety, and integration tests. In the deterministic demonstration, the unguarded system remained active through a 25-round safety sample, while the guarded graph terminated at round 5. Estimated token consumption fell from 30,000 to 6,000 tokens, an 80% reduction, with deterministic termination in every run.
 
-Pull the actual numbers from each student's own `METRICS.md` once real
-before/after runs exist — do not invent numbers here.
+## 2. Structured Analyzer Output
 
----
+I owned the Analyzer guardrail in a financial-trading multi-agent system. The failure case was subtle: a model returned a confident dictionary containing side, quantity, confidence, rationale, and risk, but omitted the ticker. A naive downstream pipeline accepted the dictionary because it looked structured, creating a silent identifier failure. I forced the Analyzer through LangChain’s `.with_structured_output(AnalysisPayload)` interface and added a wrapper that catches Pydantic or parser errors. The wrapper sends the exact validation message back once for automated correction, then stops after that single retry and raises a typed `StructuredOutputGuardError` if the second response also fails. No incomplete payload is written into shared state. In the deterministic demo, the unguarded implementation accepted 1 of 1 missing-ticker payloads. The guarded implementation forwarded 0 of 1, recovered a valid `AAPL` payload after one retry, and limited the double-failure path to exactly two model calls. Invalid-payload acceptance therefore dropped from 100% to 0% overall.
 
-## 1. Student 1 — Coordinator / Infinite Graph Loops
+## 3. Alex — Rogue Tool Execution
 
-TODO: ~150 words. Reference `student_1_loop/METRICS.md` for real loop-count
-numbers once measured (e.g. "unbounded → capped at 5 rounds").
+I built the Actor’s runtime tool middleware for a mocked financial-trading orchestrator. The adversarial batch contained one valid `execute_trade` request followed by an unauthorized `transfer_client_funds` call. A naive loop would execute the valid request first and only discover the rogue call afterward, causing partial side effects. I centralized the tool registry, represented every allowed request as a discriminated Pydantic schema, enforced argument bounds and runtime permissions, and validated the complete batch before invoking any handler. Unknown tools, extra arguments, wrong types, and out-of-range quantities raise a custom `InvalidToolCallException`. All handlers are mocks, so the assignment never contacts a brokerage. In the deterministic reproduction, the unguarded path executed the unauthorized call and partially executed the mixed batch in 1 of 1 trials. The guarded path executed zero calls from the rejected batch while still allowing 1 of 1 legitimate calls. Unauthorized and partial-batch execution rates both fell from 100% to 0%.
 
----
+## 4. Cascade-Failure Prevention
 
-## 2. Student 2 — Worker A / Silent Hallucination
+I owned the validation boundary between the Actor and downstream business logic. The reproduced failure used an Actor result whose `quantity` was the string `"ten"`. Without a guardrail, the next layer attempted arithmetic and raised a `TypeError`, turning one malformed upstream value into a cascade failure. I added an explicit sanitization step before Worker C’s business checks. It accepts only JSON objects, performs narrowly safe normalization such as trimming strings, uppercasing tickers, converting `"true"` to a boolean, and converting digit-only quantities to integers, then validates the result against the canonical `ToolExecutionResult` model. Invalid structures raise `CascadeValidationError`; the Validator records a typed graph error and sets rejection and rollback flags for Coordinator routing. In the demo, the unguarded downstream crash rate was 1 of 1, while the guarded path rejected the malformed result before arithmetic, producing zero crashes. It also safely normalized `"10"` to `10` and `" aapl "` to `AAPL`.
 
-TODO: ~150 words. Reference `student_2_silent/METRICS.md` for real
-schema-validation-failure-rate numbers before/after the structured-output
-guardrail + self-correcting retry.
+## 5. Privacy-Safe LangSmith Tracing
 
----
+I implemented the privacy layer for a LangGraph trading orchestrator. The failure payload contained an email address, SSN, API key, and production database identifier. Sending it directly to a trace sink leaked all four values. I built a recursive redaction utility that handles nested mappings, sequences, Pydantic models, sensitive key names, and high-risk string patterns. The utility always works on a deep copy, so telemetry processing cannot alter the authoritative trading state. I then wrapped trace sinks in `SafeTracer`, which redacts inputs, outputs, and metadata before handing them to a LangSmith client. I also disabled automatic framework tracing because it could capture raw payloads before the interceptor ran. In the deterministic in-memory trace test, the unguarded path leaked 4 of 4 sensitive values; the guarded path leaked 0 of 4 and reported four redactions. The original payload had zero mutations, avoiding the common tradeoff where privacy filtering breaks application logic.
 
-## 3. Student 3 — Worker B / Rogue Tool Execution
+## 6. Context and Token Management
 
-TODO: ~150 words. Reference `student_3_rogue/METRICS.md` for real
-unauthorized-tool-call-block-rate numbers.
-
----
-
-## 4. Student 4 — Validator / Downstream Cascade Failure
-
-TODO: ~150 words. Reference `student_4_cascade/METRICS.md` for real
-downstream-crash-rate numbers before/after the sanitize/assert node.
-
----
-
-## 5. Student 5 — Global Tracing / Data Privacy Leak
-
-TODO: ~150 words. Reference `student_5_trace/METRICS.md` for real
-leaked-PII-record-count numbers before/after the redaction interceptor.
-
----
-
-## 6. Student 6 — Global Context/Token Manager
-
-TODO: ~150 words. Reference `student_6_tokens/METRICS.md` for real
-token-spend / latency numbers before/after pruning+summarization.
+I owned context management for a looping multi-agent trading graph. The failure fixture accumulated 14 messages and an obsolete tool output, reaching an estimated 1,729 input tokens before the next Coordinator decision. I implemented a context guard that calculates usage through an injected token counter, preserves system instructions and essential messages, removes obsolete tool outputs, summarizes older nonessential history, and retains the most recent relevant turns. The implementation returns typed before-and-after metrics and never modifies the original message list. Summarization is dependency-injected, so tests use a deterministic summarizer while production can use the configured DeepInfra-backed LangChain model. In the measured demo, the guarded context retained three messages: the essential system instruction, a summary covering ten older messages, and recent context. Estimated input size fell from 1,729 to 122 tokens, a 92.9% reduction. Eleven net messages were pruned, the obsolete tool output was removed, and the core no-real-trades instruction remained present.
