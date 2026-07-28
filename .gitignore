@@ -6,6 +6,7 @@ __pycache__/
 *.egg-info/
 outputs/*
 !outputs/.gitkeep
+.DS_Store
 
 # Report is authored/compiled separately (e.g. Overleaf) — not tracked here.
 Group*_MultiAgentOrchestrator_Report.tex
