@@ -53,7 +53,6 @@ def manage_context(
         for message in original
         if not (message.kind == "tool_output" and message.obsolete and not message.essential)
     )
-    obsolete_pruned = len(original) - len(kept_after_obsolete)
 
     essential_indexes = {
         index for index, message in enumerate(kept_after_obsolete) if message.essential
@@ -105,6 +104,12 @@ def manage_context(
         compacted.pop(removable)
 
     after_tokens = token_counter.count_messages(compacted)
+    # Net delta against the untouched history. Obsolete removals are already
+    # contained in it, because the partition, summarization, and hard-cap stages
+    # all operate on the post-pruning list; adding the obsolete count on top
+    # would double-count those messages. The delta is also net of the inserted
+    # summary, so it trails the number of records physically dropped by one
+    # whenever summarization runs.
     pruned_messages = len(original) - len(compacted)
     return ContextGuardResult(
         messages=tuple(compacted),
@@ -112,7 +117,7 @@ def manage_context(
         metrics=ContextMetrics(
             before_tokens=before_tokens,
             after_tokens=after_tokens,
-            pruned_messages=max(pruned_messages, obsolete_pruned),
+            pruned_messages=pruned_messages,
             summarized_messages=len(older_messages),
         ),
     )
