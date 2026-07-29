@@ -191,8 +191,62 @@ def test_updates_are_assignable_back_onto_the_frozen_contract() -> None:
         setattr(state, field, value)
 
     assert isinstance(state.messages, list)
-    assert state.context_metrics.after_tokens <= 120
+    # The budget is a soft target; the invariants are hard. The old
+    # `after_tokens <= 120` could only hold by evicting the pinned compliance
+    # record, so assert real reduction plus the records that must survive it.
+    assert state.context_metrics.after_tokens < state.context_metrics.before_tokens
+    assert any(ORDER_PAYLOAD in message.content for message in state.messages)
+    assert any(COMPLIANCE_CHECK in message.content for message in state.messages)
+    assert any(AUDIT_LINE in message.content for message in state.messages)
     assert any(message.role == "system" for message in state.messages)
+
+
+def test_shorter_message_list_replaces_rather_than_appends() -> None:
+    """The single silent-failure risk in this guardrail, proven by execution.
+
+    If ``AgentState.messages`` carried an ``add_messages`` reducer, returning a
+    pruned list would APPEND to the window instead of replacing it, and every
+    metric this layer reports would be a lie while the history kept growing.
+    ``contract.py`` declares a plain ``list[MessageRecord]`` with no reducer
+    annotation, so LangGraph assigns a LastValue channel and the shorter list
+    wins -- but that had never been executed against the real library.
+
+    Verified against langgraph 1.2.10. There is deliberately no ``skipif``, no
+    ``try``/``except`` around the import, and no FakeStateGraph fallback: if
+    langgraph is absent or its reducer defaults ever change, this test must fail
+    loudly rather than quietly stop checking.
+    """
+    from langgraph.graph import END, START, StateGraph
+
+    incoming = [
+        MessageRecord(role="user", content=f"turn {index}") for index in range(5)
+    ]
+
+    def shrink(state: AgentState) -> dict[str, object]:
+        assert len(state.messages) == len(incoming)
+        return {"messages": [MessageRecord(role="system", content="ONLY SURVIVOR")]}
+
+    builder = StateGraph(AgentState)
+    builder.add_node("shrink", shrink)
+    builder.add_edge(START, "shrink")
+    builder.add_edge("shrink", END)
+    compiled = builder.compile()
+
+    result = compiled.invoke(
+        AgentState(raw_input="Evaluate NVDA", messages=incoming)
+    )
+    messages = result["messages"] if isinstance(result, dict) else result.messages
+
+    # 5 in, 1 out. Under append semantics this would be 6.
+    assert len(incoming) == 5
+    assert len(messages) == 1, (
+        f"Expected replace semantics (1 message), observed {len(messages)}. "
+        "If this is 6, AgentState.messages has gained an add_messages reducer "
+        "and every pruning guardrail in this repository is a silent no-op."
+    )
+    assert messages[0].content == "ONLY SURVIVOR"
+    # No reducer annotation is what makes the above true.
+    assert AgentState.model_fields["messages"].metadata == []
 
 
 def test_repeated_visits_converge_and_stay_bounded() -> None:
@@ -205,7 +259,22 @@ def test_repeated_visits_converge_and_stay_bounded() -> None:
         setattr(state, field, value)
     second = node(state)
 
-    assert second["context_metrics"].after_tokens <= 120
+    # The budget is a soft target; the invariants are hard. The old
+    # `after_tokens <= 120` could only hold by evicting the pinned compliance
+    # record. A reduction assertion is deliberately NOT used here: this test is
+    # about convergence, and a second visit with no new messages must reduce
+    # nothing at all, so assert stability instead.
+    assert (
+        second["context_metrics"].after_tokens
+        == first["context_metrics"].after_tokens
+    )
+    assert (
+        second["context_metrics"].before_tokens
+        == second["context_metrics"].after_tokens
+    )
+    assert any(ORDER_PAYLOAD in message.content for message in second["messages"])
+    assert any(COMPLIANCE_CHECK in message.content for message in second["messages"])
+    assert any(AUDIT_LINE in message.content for message in second["messages"])
     assert second["context_metrics"].pruned_messages == 0
     assert second["messages"] == first["messages"]
     assert second["context_summary"] == first["context_summary"]
