@@ -13,7 +13,7 @@ file is read back by tests/architecture with the platform default encoding::
 
 The node therefore runs at START and again at every loop transition, before
 each Coordinator routing decision.
-
+ 
 Why pruning takes effect rather than silently appending: ``AgentState.messages``
 is a plain ``list[MessageRecord]`` with no ``add_messages`` reducer annotation
 (contract.py:225), so LangGraph assigns it a LastValue channel and a returned
@@ -26,7 +26,7 @@ StateGraph on langgraph 1.2.10 and observes 5 messages in, 1 out.
 Configuration in the integrated graph: ``token_limit=850``, ``retain_recent=4``.
 The limit is derived from the traffic the graph is designed to carry at
 max_rounds=5; the arithmetic is documented at the constant. Because 850 sits far
-below the ~6,700-16,300 token latency break-even, the guardrail is deliberately
+below the ~6,500-15,800 token latency break-even, the guardrail is deliberately
 configured to buy token cost with added latency. On the graph as it currently
 reports, the real window peaks at 41 tokens, so the node measures and correctly
 does nothing; it is exercised under designed traffic by test_failure.py.

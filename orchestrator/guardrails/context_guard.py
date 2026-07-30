@@ -103,7 +103,7 @@ def manage_context(
     summary: str | None = None
     summary_message: MessageRecord | None = None
     if summarize_input:
-        try:
+        try: 
             summary = summarizer.summarize(summarize_input).strip()
         except Exception as error:
             # The summarizer is the only network call in this guardrail. A

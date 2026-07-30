@@ -17,3 +17,6 @@ Group*_MultiAgentOrchestrator_Report.tex
 
 # Task tracker is a local working doc — not tracked here.
 TODO - group assignment.xlsx
+
+venv/
+
