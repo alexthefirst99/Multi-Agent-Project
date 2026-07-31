@@ -75,8 +75,18 @@ def make_analyzer_node(
                 "analysis_payload": None,
                 "analysis_retry_count": 1,
                 "analysis_schema_error": True,
+                # A failed retry is a terminal Analyzer boundary. Clear every
+                # downstream artifact so stale data from an earlier graph
+                # cycle cannot be mistaken for this failed analysis.
+                "pending_tool_calls": [],
+                "approved_tool_calls": [],
+                "pending_actor_output": [],
+                "tool_execution_results": [],
+                "validation_result": None,
                 "rejection_flag": False,
+                "rejection_reason": None,
                 "rollback_requested": False,
+                "is_validated": False,
                 "errors": errors,
             }
 

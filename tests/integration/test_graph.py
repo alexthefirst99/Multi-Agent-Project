@@ -24,6 +24,13 @@ VALID_ANALYSIS = AnalysisPayload(
     rationale="Unusual volume supports a small mocked position.",
     risk_level="medium",
 )
+INVALID_ANALYSIS = {
+    "side": "buy",
+    "quantity": 10,
+    "confidence": 0.8,
+    "rationale": "Unusual volume supports a small mocked position.",
+    "risk_level": "medium",
+}
 
 
 class FakeStructuredModel:
@@ -34,6 +41,24 @@ class FakeStructuredModel:
 class FakeChatModel:
     def with_structured_output(self, schema: object) -> FakeStructuredModel:
         return FakeStructuredModel()
+
+
+class FailingStructuredModel:
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def invoke(self, input_value: object) -> object:
+        self.calls += 1
+        return INVALID_ANALYSIS
+
+
+class FailingChatModel:
+    def __init__(self) -> None:
+        self.structured_model = FailingStructuredModel()
+
+    def with_structured_output(self, schema: object) -> FailingStructuredModel:
+        assert schema is AnalysisPayload
+        return self.structured_model
 
 
 class FakeSummarizer:
@@ -145,3 +170,44 @@ def test_integrated_deterministic_flow_reaches_complete_report() -> None:
     assert state.final_report is not None
     assert state.final_report.startswith("COMPLETE REPORT")
     assert state.round_number == 3
+
+
+def test_double_schema_failure_routes_to_degraded_report() -> None:
+    state = AgentState(
+        raw_input="AAPL rose on unusual volume.",
+        messages=[MessageRecord(role="user", content="AAPL rose on unusual volume.")],
+    )
+    context_node = make_context_manager_node(
+        token_counter=ApproximateTokenCounter(),
+        summarizer=FakeSummarizer(),
+        token_limit=1_200,
+        retain_recent=4,
+    )
+    model = FailingChatModel()
+    analyzer = make_analyzer_node(
+        model,
+        message_builder=lambda current: [current.raw_input],
+        correction_builder=lambda value, error: [value, error],
+    )
+
+    state = apply(state, context_node(state))
+    state = apply(state, coordinator_node(state))
+    assert state.next_route == "worker_a_analyzer"
+
+    state = apply(state, analyzer(state))
+    assert model.structured_model.calls == 2
+    assert state.analysis_payload is None
+    assert state.analysis_schema_error is True
+    assert state.analysis_retry_count == 1
+
+    state = apply(state, validator_node(state))
+    state = apply(state, context_node(state))
+    state = apply(state, coordinator_node(state))
+    assert state.next_route == "worker_d_reporter"
+    assert state.degraded_output is True
+    assert state.termination_reason == "analysis_schema_error"
+
+    state = apply(state, reporter_node(state))
+    assert state.final_report is not None
+    assert state.final_report.startswith("DEGRADED PARTIAL REPORT")
+    assert "Termination: analysis_schema_error" in state.final_report

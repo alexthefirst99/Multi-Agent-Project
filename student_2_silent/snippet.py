@@ -1,4 +1,8 @@
-"""Grading view for the structured-output guardrail."""
+"""Anh's import-only grading view for the structured-output guardrail.
+
+The implementation remains canonical in ``orchestrator`` so this isolated view
+cannot drift from the production graph code exercised by the demonstration.
+"""
 
 from orchestrator.guardrails.structured_output_guard import (
     StructuredOutputGuardError,

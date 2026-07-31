@@ -53,14 +53,26 @@ def invoke_with_one_retry(
 
     def invoke_and_validate(payload: object) -> SchemaT:
         response = invoker.invoke(payload)
-        return response if isinstance(response, schema) else schema.model_validate(response)
+        # Pydantic's ``model_construct`` can create an instance without running
+        # validation, and ``model_validate(existing_instance)`` may trust it.
+        # Dump every BaseModel back to plain data so the frozen contract is
+        # enforced at this boundary even for pre-built model instances.
+        candidate = (
+            response.model_dump(mode="python", warnings=False)
+            if isinstance(response, BaseModel)
+            else response
+        )
+        return schema.model_validate(candidate)
 
     try:
         return StructuredOutputResult(invoke_and_validate(input_value), retry_count=0)
     except _parsing_exceptions() as first_error:
         retry_input = append_correction(input_value, str(first_error))
         try:
-            return StructuredOutputResult(invoke_and_validate(retry_input), retry_count=1)
+            return StructuredOutputResult(
+                invoke_and_validate(retry_input),
+                retry_count=1,
+            )
         except _parsing_exceptions() as retry_error:
             raise StructuredOutputGuardError(
                 str(first_error), str(retry_error)
