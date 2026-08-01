@@ -7,6 +7,7 @@ from typing import Any
 
 from contract import AgentState, MessageRecord
 from orchestrator.guardrails.context_guard import ContextSummarizer, manage_context
+from orchestrator.utils.redaction import redact_payload
 from orchestrator.utils.token_counting import TokenCounter
 
 NodeCallable = Callable[[AgentState], dict[str, object]]
@@ -18,6 +19,10 @@ class LangChainContextSummarizer:
 
     def summarize(self, messages: Sequence[MessageRecord]) -> str:
         joined = "\n".join(f"{message.role}: {message.content}" for message in messages)
+        # The trace redaction interceptor wraps the trace sink only. This model
+        # call is a second, earlier egress to a third-party API, so redact here
+        # or raw history reaches DeepInfra before any redaction runs.
+        joined = redact_payload(joined).payload
         response = self._chat_model.invoke(
             "Summarize the older orchestrator history in under 120 words, "
             "preserving decisions, errors, and identifiers:\n" + joined

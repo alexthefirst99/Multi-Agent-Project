@@ -101,6 +101,10 @@ def dependencies() -> OrchestratorDependencies:
     )
 
 
+# NOTE: this models LangGraph's replace semantics by construction and is not
+# evidence of them -- it would pass identically under add_messages append
+# semantics. For the executed proof see tests/guardrails/
+# test_context_manager_node.py::test_shorter_message_list_replaces_rather_than_appends
 def apply(state: AgentState, updates: dict[str, object]) -> AgentState:
     data = state.model_dump(mode="python")
     data.update(updates)
