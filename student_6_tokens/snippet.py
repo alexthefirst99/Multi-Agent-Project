@@ -1,4 +1,4 @@
-"""Grading view for the context-management guardrail (Student 6).
+"""Rodney's grading view for the context-management guardrail (Student 6).
 
 Placement in the compiled LangGraph (orchestrator/graph.py). ASCII only: this
 file is read back by tests/architecture with the platform default encoding::
