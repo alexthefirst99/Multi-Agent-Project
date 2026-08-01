@@ -24,7 +24,10 @@ from orchestrator.nodes.coordinator import coordinator_node
 from orchestrator.nodes.reporter import reporter_node
 from orchestrator.nodes.validator import validator_node
 from orchestrator.routing import route_from_coordinator
-from orchestrator.tools.mock_tools import build_default_tool_registry
+from orchestrator.tools.mock_tools import (
+    build_default_tool_permissions,
+    build_default_tool_registry,
+)
 from orchestrator.tools.registry import ToolRegistry
 from orchestrator.utils.token_counting import ApproximateTokenCounter, TokenCounter
 
@@ -94,7 +97,13 @@ def build_graph(
     from langgraph.graph import END, START, StateGraph
 
     analyzer = make_analyzer_node(dependencies.chat_model)
-    actor = make_actor_node(dependencies.tool_registry)
+    # Explicit permission matrix: any tool registered later that is not also
+    # added to build_default_tool_permissions() is denied by default, rather
+    # than silently allowed just because it exists in the registry.
+    actor = make_actor_node(
+        dependencies.tool_registry,
+        permissions=build_default_tool_permissions(),
+    )
     context_manager = make_context_manager_node(
         token_counter=dependencies.token_counter,
         summarizer=dependencies.summarizer,

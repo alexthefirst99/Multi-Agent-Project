@@ -10,7 +10,7 @@ from contract import (
     ExecuteTradeRequest,
     ToolRequest,
 )
-from orchestrator.tools.registry import RegisteredTool, ToolRegistry
+from orchestrator.tools.registry import RegisteredTool, ToolPermission, ToolRegistry
 
 
 def mock_execute_trade(request: ToolRequest) -> Mapping[str, object]:
@@ -60,3 +60,19 @@ def build_default_tool_registry() -> ToolRegistry:
             RegisteredTool("send_compliance_alert", mock_send_compliance_alert),
         ]
     )
+
+
+def build_default_tool_permissions() -> list[ToolPermission]:
+    """The explicit runtime permission matrix for the production graph.
+
+    ``tool_guard.validate_tool_batch`` denies any registered tool that is not
+    named here (its permission map falls back to ``False`` for anything
+    absent from this list). Registering a new tool in
+    ``build_default_tool_registry`` does NOT make it callable on its own --
+    it must also be added here, deliberately, before the Actor can invoke it.
+    """
+    return [
+        ToolPermission("execute_trade", allowed=True),
+        ToolPermission("cancel_order", allowed=True),
+        ToolPermission("send_compliance_alert", allowed=True),
+    ]

@@ -9,7 +9,10 @@ from orchestrator.guardrails.tool_guard import (
     guard_and_execute_tool_batch,
     validate_tool_batch,
 )
-from orchestrator.tools.mock_tools import build_default_tool_registry
+from orchestrator.tools.mock_tools import (
+    build_default_tool_permissions,
+    build_default_tool_registry,
+)
 from orchestrator.tools.registry import ToolPermission
 
 VALID = {
@@ -65,3 +68,38 @@ def test_validation_does_not_mutate_raw_calls() -> None:
     snapshot = deepcopy(raw)
     validate_tool_batch(raw, build_default_tool_registry())
     assert raw == snapshot
+
+
+def test_registered_tool_missing_from_explicit_permissions_is_denied() -> None:
+    """Guards the production wiring gap: a tool that exists in the registry but
+    was never added to an explicit permission list must be denied, not
+    silently allowed just because it is registered. ``orchestrator/graph.py``
+    now relies on exactly this by passing ``build_default_tool_permissions()``
+    instead of ``permissions=None`` (which would allow every registered tool).
+    Simulates a team forgetting to grant ``cancel_order`` when only
+    ``execute_trade`` was explicitly permissioned.
+    """
+    registry = build_default_tool_registry()
+    partial_permissions = [ToolPermission("execute_trade", allowed=True)]
+
+    with pytest.raises(InvalidToolCallException, match="permission denied"):
+        validate_tool_batch(
+            [{"tool_name": "cancel_order", "arguments": {"order_id": "ORDER-1"}}],
+            registry,
+            permissions=partial_permissions,
+        )
+    # The tool that IS explicitly listed remains unaffected.
+    result = guard_and_execute_tool_batch(
+        [VALID], registry, permissions=partial_permissions
+    )
+    assert result.raw_results[0]["status"] == "mock_success"
+
+
+def test_default_tool_permissions_cover_the_full_registry() -> None:
+    """If a new tool is ever added to the registry, this test fails until it is
+    also added to ``build_default_tool_permissions()`` -- turning a silent
+    allow-by-omission gap into a loud, immediate test failure.
+    """
+    registry = build_default_tool_registry()
+    permitted_names = {permission.name for permission in build_default_tool_permissions()}
+    assert permitted_names == registry.names

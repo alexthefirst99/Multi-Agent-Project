@@ -1,4 +1,8 @@
-"""Assignment isolation view for Alex."""
+"""Alex's import-only grading view for the rogue-tool-execution guardrail.
+
+The implementation remains canonical in ``orchestrator`` so this isolated view
+cannot drift from the production graph code exercised by the demonstration.
+"""
 
 from orchestrator.guardrails.tool_guard import (
     InvalidToolCallException,

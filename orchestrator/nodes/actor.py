@@ -57,6 +57,12 @@ def make_actor_node(
             return {
                 "approved_tool_calls": [],
                 "pending_actor_output": [],
+                # A rejected batch is a terminal Actor boundary. Clear every
+                # downstream artifact so stale data from an earlier graph
+                # cycle cannot be mistaken for this rejected attempt.
+                "tool_execution_results": [],
+                "validation_result": None,
+                "is_validated": False,
                 "rejection_flag": True,
                 "rejection_reason": str(exc),
                 "rollback_requested": True,
