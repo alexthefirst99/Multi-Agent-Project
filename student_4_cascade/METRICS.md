@@ -1,4 +1,4 @@
-# Metrics — Validator — Downstream Cascade Failure
+# Metrics — JN — Downstream Cascade Failure
 
 Measured by `python student_4_cascade/test_failure.py` using malformed and safely coercible Actor outputs.
 

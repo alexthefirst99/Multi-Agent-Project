@@ -1,4 +1,4 @@
-# Metrics — Privacy Tracing — Telemetry Leak
+# Metrics — Zainab — Telemetry Leak
 
 Measured by `python student_5_trace/test_failure.py` using an in-memory trace sink.
 

@@ -89,7 +89,7 @@ files are not committed to this code repository.
 | Quynh (Student 1) | Infinite graph loop | `orchestrator/nodes/coordinator.py`, `orchestrator/guardrails/loop_guard.py`, `orchestrator/routing.py` | `student_1_loop/` |
 | Anh (Student 2) | Silent hallucination | `orchestrator/nodes/analyzer.py`, `orchestrator/guardrails/structured_output_guard.py` | `student_2_silent/` |
 | Alex (Student 3) | Rogue tool execution | `orchestrator/nodes/actor.py`, `orchestrator/guardrails/tool_guard.py`, `orchestrator/tools/` | `student_3_rogue/` |
-| Student 4 | Cascade failure | `orchestrator/nodes/validator.py`, `orchestrator/guardrails/cascade_guard.py` | `student_4_cascade/` |
+| JN (Student 4) | Cascade failure | `orchestrator/nodes/validator.py`, `orchestrator/guardrails/cascade_guard.py` | `student_4_cascade/` |
 | Zainab (Student 5) | Telemetry privacy leak | `orchestrator/guardrails/privacy_guard.py`, `orchestrator/utils/redaction.py` | `student_5_trace/` |
 | Rodney (Student 6) | Context/token explosion | `orchestrator/nodes/context_manager.py`, `orchestrator/guardrails/context_guard.py` | `student_6_tokens/` |
 
