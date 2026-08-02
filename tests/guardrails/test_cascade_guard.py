@@ -121,6 +121,15 @@ def test_unhashable_values_are_rejected_not_crashed(entry: dict[str, object]) ->
         sanitize_actor_output([entry])
 
 
+@pytest.mark.parametrize("quantity", ["²", "9" * 5000])
+def test_exotic_quantity_strings_are_rejected_not_crashed(quantity: str) -> None:
+    state = make_state(pending_actor_output=[{**WELL_FORMED, "quantity": quantity}])
+    updates = validate_sanitize_node(state)
+    assert updates["rejection_flag"] is True
+    assert updates["rollback_requested"] is True
+    assert updates["tool_execution_results"] == []
+
+
 def test_type_violations_pass_invariants_but_fail_the_typed_backstop() -> None:
     # The backstop's Pydantic message is distinctive: it proves the entry got
     # PAST the invariant layer and was rejected by typed validation instead.

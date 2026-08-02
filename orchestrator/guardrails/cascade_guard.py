@@ -101,9 +101,16 @@ def _safe_normalize_mapping(value: Mapping[str, object]) -> tuple[dict[str, obje
             elif key == "success" and stripped.lower() in {"true", "false"}:
                 clean = stripped.lower() == "true"
                 changes += 1
-            elif key == "quantity" and stripped.isdigit():
-                clean = int(stripped)
-                changes += 1
+            elif key == "quantity" and stripped.isdecimal():
+                # isdecimal(), not isdigit(): isdigit() also accepts
+                # digit-property characters ("²", "①") that int() rejects.
+                try:
+                    clean = int(stripped)
+                    changes += 1
+                except ValueError:
+                    # Over CPython's int-conversion digit limit: leave the
+                    # string for the Pydantic backstop to reject gracefully.
+                    clean = stripped
         normalized[str(key)] = clean
     return normalized, changes
 
