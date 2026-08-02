@@ -1,13 +1,40 @@
-"""Sanitize Actor output before downstream business validation."""
+"""Sanitize Actor output before downstream business validation.
+
+Student 4 (JN) cascade guardrail. Raw Actor output is untrusted until it has
+passed two layers, in order:
+
+1. ``assert_structural_invariants`` -- explicit boundary invariants derived
+   from the frozen contract: every required ``ToolExecutionResult`` key must
+   be present and ``status``/``tool_name`` must sit inside the contract's
+   allowed literal sets.
+2. ``ToolExecutionResult.model_validate`` -- the typed Pydantic backstop that
+   enforces field types, ranges, and patterns.
+
+Only entries that survive both layers may be promoted into the authoritative
+``tool_execution_results`` state field.
+"""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Mapping, Sequence
+from typing import Mapping, Sequence, get_args
 
 from pydantic import JsonValue, ValidationError
 
 from contract import AnalysisPayload, ToolExecutionResult, ValidationResult
+
+# Derived from the frozen contract rather than restated by hand, so the
+# invariant layer cannot drift from ToolExecutionResult's literal sets.
+_RESULT_FIELDS = ToolExecutionResult.model_fields
+REQUIRED_RESULT_KEYS: frozenset[str] = frozenset(
+    name for name, field in _RESULT_FIELDS.items() if field.is_required()
+)
+ALLOWED_RESULT_STATUSES: frozenset[str] = frozenset(
+    get_args(_RESULT_FIELDS["status"].annotation)
+)
+ALLOWED_RESULT_TOOL_NAMES: frozenset[str] = frozenset(
+    get_args(_RESULT_FIELDS["tool_name"].annotation)
+)
 
 
 class CascadeValidationError(ValueError):
@@ -23,6 +50,32 @@ class CascadeValidationError(ValueError):
 class SanitizedActorOutput:
     results: tuple[ToolExecutionResult, ...]
     sanitized_values: int
+
+
+def assert_structural_invariants(entry: Mapping[str, object], index: int) -> None:
+    """Assert contract-derived structural invariants on one raw Actor result."""
+    missing = sorted(REQUIRED_RESULT_KEYS - entry.keys())
+    if missing:
+        raise CascadeValidationError(
+            index, f"missing required keys: {', '.join(missing)}"
+        )
+    # isinstance short-circuits before the frozenset lookup: JsonValue allows
+    # nested arrays/objects here, and hashing an unhashable value would raise
+    # TypeError instead of the graceful rejection this guardrail must produce.
+    tool_name = entry["tool_name"]
+    if not isinstance(tool_name, str) or tool_name not in ALLOWED_RESULT_TOOL_NAMES:
+        raise CascadeValidationError(
+            index,
+            f"tool_name {tool_name!r} is not in the allowed set "
+            f"{sorted(ALLOWED_RESULT_TOOL_NAMES)}",
+        )
+    status = entry["status"]
+    if not isinstance(status, str) or status not in ALLOWED_RESULT_STATUSES:
+        raise CascadeValidationError(
+            index,
+            f"status {status!r} is not in the allowed set "
+            f"{sorted(ALLOWED_RESULT_STATUSES)}",
+        )
 
 
 def _safe_normalize_mapping(value: Mapping[str, object]) -> tuple[dict[str, object], int]:
@@ -63,6 +116,7 @@ def sanitize_actor_output(raw_results: Sequence[JsonValue]) -> SanitizedActorOut
         if not isinstance(raw_result, Mapping):
             raise CascadeValidationError(index, "result must be a JSON object")
         normalized, changes = _safe_normalize_mapping(raw_result)
+        assert_structural_invariants(normalized, index)
         try:
             result = ToolExecutionResult.model_validate(normalized)
         except ValidationError as exc:

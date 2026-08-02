@@ -11,7 +11,7 @@ The system is a stateful LangGraph financial-trading orchestrator with one Coord
 | 1 | Infinite graph loop | Repeated Analyzer rollback consumes tokens without reaching a report | Implemented deterministic round counter and forced degraded report at visit 5 |
 | 2 | Silent hallucination / structural failure | Analyzer omits ticker or emits invalid quantity while appearing confident | Implemented Pydantic structured output and exactly one correction retry |
 | 3 | Rogue tool execution | Prompt injection requests fund transfer or bypasses risk checks | Implemented registered mock-tool whitelist, permission matrix, strict arguments, bounds, and atomic batch validation |
-| 4 | Downstream cascade failure | String quantity or malformed result crashes Validator arithmetic | Implemented explicit boundary sanitization, typed parsing, rejection, and rollback flags |
+| 4 | Downstream cascade failure | Missing keys or string quantities crash downstream Worker C logic (`KeyError`/`TypeError`) | Implemented explicit `validate_sanitize_node` asserting contract-derived invariants, typed parsing, rejection, and rollback flags |
 | 5 | Privacy leak in telemetry | Email, SSN, API key, or production database identifier reaches LangSmith | Implemented recursive non-mutating redaction and disabled automatic raw tracing |
 | 6 | Context-window explosion | Repeated tool outputs and history increase latency and token spend | Implemented token measurement, obsolete-output pruning, summarization, and recent-turn retention |
 | 7 | Prompt injection in market text | News text instructs the model to ignore permissions | Tool permissions remain deterministic code; untrusted text cannot register tools |
