@@ -78,6 +78,9 @@ def test_ui_is_isolated_under_app() -> None:
     assert "streamlit run app/app.py" in ROOT.joinpath("README.md").read_text()
 
 
+VIDEO_EXTENSIONS = {".mp4", ".mov"}
+
+
 def test_student_deliverables_are_root_level_and_complete() -> None:
     actual = {
         path.name
@@ -85,13 +88,13 @@ def test_student_deliverables_are_root_level_and_complete() -> None:
         if path.is_dir() and path.name.startswith("student_")
     }
     assert actual == set(DELIVERABLE_FOLDERS)
+    required = {"snippet.py", "test_failure.py", "METRICS.md"}
     for folder in DELIVERABLE_FOLDERS:
         directory = ROOT / folder
-        assert {path.name for path in directory.iterdir() if path.is_file()} == {
-            "snippet.py",
-            "test_failure.py",
-            "METRICS.md",
-        }
+        names = {path.name for path in directory.iterdir() if path.is_file()}
+        assert required <= names
+        extras = names - required
+        assert all(Path(name).suffix.lower() in VIDEO_EXTENSIONS for name in extras)
 
 
 def test_individual_snippets_are_import_only_views() -> None:
