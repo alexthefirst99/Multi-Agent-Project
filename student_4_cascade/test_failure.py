@@ -5,10 +5,21 @@ business logic: a result missing its required keys raises ``KeyError`` and a
 string quantity raises ``TypeError`` in notional arithmetic. WITH the
 guardrail, ``validate_sanitize_node`` rejects both records before any
 downstream code runs and the Coordinator re-routes to the Analyzer.
+
+Run modes::
+
+    python test_failure.py                    # full before/after and metrics
+    python test_failure.py --crash keys       # uncaught KeyError, no guardrail
+    python test_failure.py --crash quantity   # uncaught TypeError, no guardrail
+    python test_failure.py --guarded          # same payloads, guardrail active
+
+The ``--crash`` modes deliberately let the exception propagate so the native
+failure is visible as a real traceback rather than a caught summary.
 """
 
 from __future__ import annotations
 
+import argparse
 import sys
 from pathlib import Path
 
@@ -95,6 +106,33 @@ def guarded_outcome(raw: dict[str, object]) -> tuple[AgentState, str]:
     return after_validator, routed.next_route
 
 
+FIXTURES = {"keys": MISSING_KEYS, "quantity": TYPE_CONFUSED}
+FIXTURE_LABELS = {"keys": "missing status/reference_id", "quantity": 'quantity="ten"'}
+
+
+def raw_crash(name: str) -> None:
+    """Run unguarded Worker C and let the exception escape, uncaught."""
+    raw = FIXTURES[name]
+    print("=== NO SANITIZATION NODE: raw Worker B output into Worker C ===")
+    print(f"Worker B handed us: {raw}")
+    print("Worker C computing notional value...", flush=True)
+    unsafe_worker_c([raw])
+
+
+def guarded_demo() -> None:
+    """Send the identical malformed payloads through the guarded node."""
+    print("=== GUARDRAIL ACTIVE: identical payloads ===")
+    for name, label in FIXTURE_LABELS.items():
+        state, route = guarded_outcome(FIXTURES[name])
+        print(f"\n--- {label} ---")
+        print(f"  exception trapped     : {state.errors[-1].code}")
+        print(f"  rejection_flag        : {state.rejection_flag}")
+        print(f"  rollback_requested    : {state.rollback_requested}")
+        print(f"  results promoted      : {len(state.tool_execution_results)}")
+        print(f"  Coordinator re-routes : {route}")
+    print("\nProcess still alive: no traceback, no deadlock.")
+
+
 def main() -> None:
     unguarded_crashes = {
         "missing keys": crash_type(MISSING_KEYS),
@@ -154,4 +192,24 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(
+        description="Downstream-cascade failure reproduction (all actions mocked)."
+    )
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument(
+        "--crash",
+        choices=sorted(FIXTURES),
+        help="run unguarded Worker C on one malformed payload and let it crash",
+    )
+    group.add_argument(
+        "--guarded",
+        action="store_true",
+        help="run the same malformed payloads through the guarded node",
+    )
+    arguments = parser.parse_args()
+    if arguments.crash:
+        raw_crash(arguments.crash)
+    elif arguments.guarded:
+        guarded_demo()
+    else:
+        main()
