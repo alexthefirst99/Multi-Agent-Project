@@ -115,13 +115,18 @@ def test_malformed_output_is_rejected_before_business_logic() -> None:
         {**WELL_FORMED, "tool_name": ["execute_trade"]},
         {**WELL_FORMED, "status": {"nested": 1}},
     ],
+    ids=["list-as-tool_name", "dict-as-status"],
 )
 def test_unhashable_values_are_rejected_not_crashed(entry: dict[str, object]) -> None:
     with pytest.raises(CascadeValidationError, match="is not in the allowed set"):
         sanitize_actor_output([entry])
 
 
-@pytest.mark.parametrize("quantity", ["²", "9" * 5000])
+@pytest.mark.parametrize(
+    "quantity",
+    ["²", "9" * 5000],
+    ids=["superscript-two", "5000-digit-string"],
+)
 def test_exotic_quantity_strings_are_rejected_not_crashed(quantity: str) -> None:
     state = make_state(pending_actor_output=[{**WELL_FORMED, "quantity": quantity}])
     updates = validate_sanitize_node(state)
